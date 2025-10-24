@@ -57,16 +57,16 @@ void vTask1( void *pvParameters )
     Serial.printf("[INFO] vTask1 travaille de son côté\n", xPortGetCoreID());
     delay(nb_iterations*half_period_ms);
     
-    //xSemaphoreTake(xMutex, portMAX_DELAY);
-    //Serial.printf("vTask1 a verrouillé le mutex\n", xPortGetCoreID());
+    xSemaphoreTake(xMutex, portMAX_DELAY);
+    Serial.printf("vTask1 a verrouillé le mutex\n", xPortGetCoreID());
 
     // simule du boulot du voie 1
     Serial.printf("[INFO] vTask1 travaille sur la ressource partagée\n", xPortGetCoreID());
     alternate(oscillo1, 10);
     Serial.printf("[INFO] vTask1 a fini de travailler sur la ressource partagée\n", xPortGetCoreID());
     
-    //Serial.printf("vTask1 déverrouille le mutex\n", xPortGetCoreID());    
-    //xSemaphoreGive(xMutex);
+    Serial.printf("vTask1 déverrouille le mutex\n", xPortGetCoreID());    
+    xSemaphoreGive(xMutex);
     
 
     vTaskDelay( pdMS_TO_TICKS( 100 ) );   
@@ -92,16 +92,16 @@ void vTask2( void *pvParameters )
     Serial.printf("[INFO] vTask2 travaille de son côté\n", xPortGetCoreID());
     delay(10);
     
-    //xSemaphoreTake(xMutex, portMAX_DELAY);
-    //Serial.printf("vTask2 a verrouillé le mutex\n", xPortGetCoreID());
+    xSemaphoreTake(xMutex, portMAX_DELAY);
+    Serial.printf("vTask2 a verrouillé le mutex\n", xPortGetCoreID());
 
     // simule du boulot
     Serial.printf("[INFO] vTask2 travaille sur la ressource partagée\n", xPortGetCoreID());
     alternate(oscillo2, 10);
     Serial.printf("[INFO] vTask2 a fini de travailler sur la ressource partagée\n", xPortGetCoreID());
     
-    //Serial.printf("vTask2 déverrouille le mutex\n", xPortGetCoreID());
-    //xSemaphoreGive(xMutex);
+    Serial.printf("vTask2 déverrouille le mutex\n", xPortGetCoreID());
+    xSemaphoreGive(xMutex);
  
     
     vTaskDelay( pdMS_TO_TICKS( 200 ) );     

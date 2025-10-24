@@ -158,8 +158,8 @@ void setup()
   Serial.println("Start");
   
 
-  xSemaphore = xSemaphoreCreateBinary();
-  //xSemaphore = xSemaphoreCreateMutex();
+  //xSemaphore = xSemaphoreCreateBinary();
+  xSemaphore = xSemaphoreCreateMutex();
 
   xSemaphoreGive( xSemaphore );
 
