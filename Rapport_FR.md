@@ -12,7 +12,8 @@ Cette expérimentation utilise `xTaskCreate` pour créer deux tâches, chacune b
 
 ### Analyse graphique
 
-![Forme d'onde oscilloscope Q21a](img/q21a.jpg)
+![Figure 1 : Exécution parallèle multi-cœurs](img/q21a.jpg)
+*Figure 1 : Signaux GPIO en exécution parallèle sur cœurs différents*
 
 **Observation graphique** : L'oscilloscope montre que les broches 19 et 23 génèrent toutes deux des signaux carrés d'environ 1000 kHz. Les deux signaux sont émis simultanément avec la même fréquence, indiquant que les deux tâches s'exécutent en parallèle sur des cœurs différents sans interférence mutuelle, même avec une grande différence de priorité, aucun phénomène de préemption ne se produit.
 
@@ -24,11 +25,13 @@ Cette expérimentation utilise `xTaskCreatePinnedToCore` pour lier les deux tâc
 
 ### Analyse graphique
 
-![Q21b premier test](img/q21b_1.jpg)
+![Figure 2 : Phénomène d'affamation par priorité - Test 1](img/q21b_1.jpg)
+*Figure 2 : Affamation de la tâche basse priorité en mono-cœur (premier test)*
 
 **Observation graphique** : La fréquence du signal de la broche 19 est d'environ 1000 kHz, présentant une onde carrée dense, tandis que l'autre signal est presque une ligne plate. Cela indique que la tâche de haute priorité occupe continuellement le cœur 0, la tâche de basse priorité est "affamée", n'obtenant presque aucune opportunité d'exécution.
 
-![Q21b deuxième test](img/q21b_2.jpg)
+![Figure 3 : Phénomène d'affamation par priorité - Test 2](img/q21b_2.jpg)
+*Figure 3 : Confirmation de l'affamation en mono-cœur (deuxième test)*
 
 **Observation graphique** : La forme d'onde est similaire au premier test, confirmant davantage l'effet de préemption par priorité dans un environnement mono-cœur. La tâche de basse priorité ne peut s'exécuter que pendant les instants très brefs où la tâche de haute priorité cède le CPU, avec presque aucune activité visible sur la forme d'onde.
 
@@ -40,11 +43,13 @@ Cette expérimentation apporte des améliorations clés par rapport à Q21b : le
 
 ### Analyse graphique
 
-![Q22a premier test](img/q22a_1.jpg)
+![Figure 4 : Tâches périodiques avec vTaskDelay - Test 1](img/q22a_1.jpg)
+*Figure 4 : Motifs périodiques avec vTaskDelay (premier test)*
 
 **Observation graphique** : Les deux signaux présentent une forme de train d'impulsions régulier, les signaux jaune et bleu montrant tous deux un rythme clair "travail-repos". Comme les deux tâches s'exécutent sur des cœurs différents, elles peuvent s'exécuter en parallèle sans interférence mutuelle, même avec des priorités différentes, toutes deux fonctionnent normalement.
 
-![Q22a deuxième test](img/q22a_2.jpg)
+![Figure 5 : Tâches périodiques avec vTaskDelay - Test 2](img/q22a_2.jpg)
+*Figure 5 : Confirmation des motifs périodiques avec vTaskDelay (deuxième test)*
 
 **Observation graphique** : La forme d'onde est cohérente avec le premier test, confirmant davantage le rôle de `vTaskDelay`. Bien que les deux tâches aient des priorités différentes, elles réalisent un ordonnancement équitable en cédant activement le CPU, évitant le phénomène de famine.
 
@@ -56,11 +61,13 @@ Cette expérimentation remplace `vTaskDelay` par `vTaskDelayUntil`, implémentan
 
 ### Analyse graphique
 
-![Q22b premier test](img/q22b_1.jpg)
+![Figure 6 : Ordonnancement périodique avec vTaskDelayUntil - Test 1](img/q22b_1.jpg)
+*Figure 6 : Périodicité stricte avec vTaskDelayUntil (premier test)*
 
 **Observation graphique** : Les deux signaux présentent des trains d'impulsions très réguliers, les impulsions de la tâche 1 (période 10ms) sont plus denses, les impulsions de la tâche 2 (période 20ms) sont légèrement plus espacées. L'ordonnancement périodique rend les intervalles de signal uniformément stables, sans phénomène de gigue ou de dérive.
 
-![Q22b deuxième test](img/q22b_2.jpg)
+![Figure 7 : Ordonnancement périodique avec vTaskDelayUntil - Test 2](img/q22b_2.jpg)
+*Figure 7 : Stabilité du contrôle périodique avec vTaskDelayUntil (deuxième test)*
 
 **Observation graphique** : La forme d'onde reste cohérente avec le premier test, vérifiant la capacité de contrôle de période précise de `vTaskDelayUntil`. Même si la tâche 2 commence avec un délai dû à l'exécution de la tâche 1, sa périodicité reste garantie, reflétant la prévisibilité du système temps réel.
 
@@ -78,7 +85,8 @@ Ce mécanisme est similaire à un modèle "starter-athlète" : la tâche 1 lève
 
 #### Analyse graphique
 
-![Forme d'onde oscilloscope Q23a](img/q23a_1.jpg)
+![Figure 8 : Synchronisation par sémaphore binaire](img/q23a_1.jpg)
+*Figure 8 : Synchronisation stricte entre tâches avec sémaphore binaire*
 
 **Observation graphique** : L'oscilloscope montre deux trains d'impulsions clairs. CH1 (jaune) montre les impulsions périodiques de la tâche 1, chaque impulsion correspondant à un cycle complet de basculement GPIO. CH2 (bleu) montre les impulsions de la tâche 2, dont l'apparition suit toujours immédiatement les impulsions de la tâche 1, avec une relation temporelle évidente de dépendance. Un délai temporel fixe peut être observé entre les deux signaux, c'est la manifestation du mécanisme de synchronisation par sémaphore.
 
@@ -96,7 +104,8 @@ L'expérimentation est divisée en deux phases :
 
 #### Analyse graphique - Première phase (sans protection mutex)
 
-![Q23b sans protection mutex](img/q23b_1.jpg)
+![Figure 9 : Condition de course sans mutex](img/q23b_1.jpg)
+*Figure 9 : Accès concurrent non protégé à la ressource partagée*
 
 **Observation graphique** : La forme d'onde affichée par l'oscilloscope présente des caractéristiques de désordre évidentes. Le train d'impulsions CH1 (jaune) montre une densité inégale à l'intérieur, certaines zones ont des impulsions manifestement clairsemées. La distribution des impulsions CH2 (bleu) est également très irrégulière, tantôt dense tantôt clairsemée. Les deux signaux se chevauchent et s'entrelacent dans le temps, incapables de former une division claire des cycles de travail.
 
@@ -104,7 +113,8 @@ L'expérimentation est divisée en deux phases :
 
 #### Analyse graphique - Deuxième phase (protection mutex)
 
-![Q23b protection mutex](img/q23b_2.jpg)
+![Figure 10 : Protection par mutex](img/q23b_2.jpg)
+*Figure 10 : Accès mutuellement exclusif avec protection mutex*
 
 **Observation graphique** : Après ajout de la protection mutex, la forme d'onde subit un changement significatif. Les trains d'impulsions CH1 (jaune) et CH2 (bleu) deviennent tous deux très réguliers et denses, chaque largeur d'impulsion est cohérente, les intervalles sont uniformes. Les deux signaux présentent un mode clair de "travail alterné" : pendant une certaine période CH1 est actif, ensuite CH2 est actif, il n'y a plus de chevauchement ou d'entrelacement entre eux. La forme d'onde globale présente une périodicité claire et une prévisibilité.
 
@@ -258,7 +268,8 @@ Cette expérimentation démontre le mécanisme de coopération entre les interru
 
 ### 2.4.2 Analyse graphique
 
-![Forme d'onde oscilloscope Q24](img/q24.jpg)
+![Figure 11 : Synchronisation par interruption et sémaphore](img/q24.jpg)
+*Figure 11 : Coopération entre interruption matérielle et tâches via sémaphore*
 
 **Observation graphique** :
 - **CH1 (jaune, Tâche1)** : Affiche un train d'impulsions régulier, chaque train d'impulsions d'environ 100ms de largeur (10 fois × 10ms), intervalle de 1 seconde
