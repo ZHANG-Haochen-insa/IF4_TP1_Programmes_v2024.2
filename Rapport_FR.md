@@ -8,27 +8,27 @@ Ce rapport explore les mécanismes d'ordonnancement multitâche de FreeRTOS sur 
 
 ### Analyse du code
 
-Cette expérimentation utilise `xTaskCreate` pour créer deux tâches, chacune basculant continuellement sa broche GPIO respective. La tâche 1 est assignée à GPIO19 avec une priorité de 1 ; la tâche 2 est assignée à GPIO23 avec une priorité de 10. En utilisant `xTaskCreate` plutôt qu'une création avec affectation de cœur, l'ordonnanceur FreeRTOS distribue les deux tâches sur les différents cœurs de l'ESP32.
+Cette expérimentation utilise `xTaskCreate` pour créer deux tâches, chacune basculant continuellement sa broche GPIO respective. La tâche 1 est assignée à GPIO19 avec une priorité de 1 ; la tâche 2 est assignée à GPIO23 avec une priorité de 10. En utilisant `xTaskCreate` plutôt qu'une création avec affectation de cœur, l'ordonnanceur FreeRTOS distribue les deux tâches sur les différents cœurs de l'ESP32, réalisant ainsi une véritable exécution parallèle. Le moniteur série montre que les deux tâches démarrent respectivement sur les cœurs 0 et 1, confirmant la stratégie d'allocation automatique de cœurs par l'ordonnanceur, permettant même à des tâches avec de grandes différences de priorité de s'exécuter en parallèle sans interférence mutuelle.
 
 ### Analyse graphique
 
 ![Figure 1 : Exécution parallèle multi-cœurs](img/q21a.jpg)
 *Figure 1 : Signaux GPIO en exécution parallèle sur cœurs différents*
 
-**Observation graphique** : L'oscilloscope montre que les broches 19 et 23 génèrent toutes deux des signaux carrés d'environ 1000 kHz. Les deux signaux sont émis simultanément avec la même fréquence, indiquant que les deux tâches s'exécutent en parallèle sur des cœurs différents sans interférence mutuelle, même avec une grande différence de priorité, aucun phénomène de préemption ne se produit.
+**Observation graphique** : L'oscilloscope montre que les broches 19 et 23 génèrent toutes deux des signaux carrés d'environ 1000 kHz. Les deux signaux sont émis simultanément avec la même fréquence, indiquant que les deux tâches s'exécutent en parallèle sur des cœurs différents sans interférence mutuelle, même avec une grande différence de priorité, aucun phénomène de préemption ne se produit. Cette exécution parallèle multi-cœurs est la caractéristique clé de cette expérimentation, rendant le mécanisme de priorité temporairement "inactif", permettant aux deux tâches d'obtenir un temps d'exécution suffisant.
 
 ## 2.1.2 Deuxième essai (Q21b)
 
 ### Analyse du code
 
-Cette expérimentation utilise `xTaskCreatePinnedToCore` pour lier les deux tâches au cœur 0, les forçant à concourir pour le temps CPU sur le même cœur. La tâche 1 a une priorité de 1, la tâche 2 a une priorité de 10. Lorsque deux tâches s'exécutent sur le même cœur avec des priorités différentes, la tâche de haute priorité occupera continuellement le CPU, empêchant la tâche de basse priorité de s'exécuter. Seulement lorsque les priorités sont identiques, le système permettra aux tâches de s'exécuter alternativement.
+Cette expérimentation utilise `xTaskCreatePinnedToCore` pour lier les deux tâches au cœur 0, les forçant à concourir pour le temps CPU sur le même cœur, tout en sauvegardant les handles de tâches pour un contrôle ultérieur. La tâche 1 a une priorité de 1, la tâche 2 a une priorité de 10. Lorsque deux tâches s'exécutent sur le même cœur avec des priorités différentes, la tâche de haute priorité occupera continuellement le CPU, empêchant la tâche de basse priorité de s'exécuter. Pour éviter ce problème, trois approches sont possibles : distribuer les tâches sur différents cœurs, définir des priorités identiques pour permettre à l'ordonnanceur de répartir le temps CPU en alternance, ou ajouter `vTaskDelay` dans les tâches pour céder activement le CPU. L'expérimentation montre qu'après avoir défini les deux tâches avec la même priorité, l'ordonnanceur FreeRTOS adopte une rotation par tranche de temps, les deux tâches s'exécutant alternativement, éliminant le phénomène d'affamation.
 
 ### Analyse graphique
 
 ![Figure 2 : Phénomène d'affamation par priorité - Test 1](img/q21b_1.jpg)
 *Figure 2 : Affamation de la tâche basse priorité en mono-cœur (premier test)*
 
-**Observation graphique** : La fréquence du signal de la broche 19 est d'environ 1000 kHz, présentant une onde carrée dense, tandis que l'autre signal est presque une ligne plate. Cela indique que la tâche de haute priorité occupe continuellement le cœur 0, la tâche de basse priorité est "affamée", n'obtenant presque aucune opportunité d'exécution.
+**Observation graphique** : La fréquence du signal de la broche 19 est d'environ 1000 kHz, présentant une onde carrée dense, tandis que l'autre signal est presque une ligne plate. Cela démontre clairement l'effet de préemption par priorité dans un environnement mono-cœur : la tâche de haute priorité (priorité 10) occupe continuellement le CPU, la tâche de basse priorité (priorité 1) est "affamée", n'obtenant presque aucune opportunité d'exécution, l'oscilloscope montrant un signal dense et l'autre presque statique.
 
 ![Figure 3 : Phénomène d'affamation par priorité - Test 2](img/q21b_2.jpg)
 *Figure 3 : Confirmation de l'affamation en mono-cœur (deuxième test)*
@@ -39,7 +39,7 @@ Cette expérimentation utilise `xTaskCreatePinnedToCore` pour lier les deux tâc
 
 ### Analyse du code
 
-Cette expérimentation apporte des améliorations clés par rapport à Q21b : les deux tâches sont liées à des cœurs différents (tâche 1 sur le cœur 0, tâche 2 sur le cœur 1), et un délai est ajouté après chaque série de 30000 basculements (tâche 1 délai 10ms, tâche 2 délai 20ms). L'allocation multi-cœurs élimine le problème de préemption par priorité, tandis que l'ajout de `vTaskDelay` permet aux tâches de céder périodiquement le CPU, réalisant un mode régulier "travail-repos".
+Cette expérimentation apporte des améliorations clés par rapport à Q21b : les deux tâches sont liées à des cœurs différents (tâche 1 sur le cœur 0, tâche 2 sur le cœur 1), la charge de travail est augmentée (30000 basculements), et un délai est ajouté après chaque série de basculements (tâche 1 délai 10ms, tâche 2 délai 20ms). L'allocation multi-cœurs élimine le problème de préemption par priorité, tandis que l'ajout de `vTaskDelay` permet aux tâches de céder périodiquement le CPU, réalisant un mode régulier "travail-repos". La tâche 1 a une période d'environ 10ms, la tâche 2 d'environ 20ms, car `vTaskDelay` met les tâches en état bloqué pour la durée spécifiée après avoir terminé leur travail, ajouté au temps d'exécution des basculements, formant ainsi un motif périodique. Il est important de noter que si les deux tâches sont forcées sur le même cœur, grâce à l'ajout de `vTaskDelay`, les deux tâches peuvent obtenir des opportunités d'exécution, évitant le phénomène d'affamation sévère observé dans Q21b. Cependant, `vTaskDelay` commence à compter à partir du moment de l'appel, accumulant des erreurs de temps d'exécution, et n'est donc pas la meilleure méthode pour implémenter des tâches périodiques précises ; il faudrait utiliser `vTaskDelayUntil` pour garantir une stricte périodicité.
 
 ### Analyse graphique
 
@@ -57,7 +57,7 @@ Cette expérimentation apporte des améliorations clés par rapport à Q21b : le
 
 ### Analyse du code
 
-Cette expérimentation remplace `vTaskDelay` par `vTaskDelayUntil`, implémentant l'ordonnancement de tâches périodiques. `vTaskDelayUntil` garantit que la tâche s'exécute avec une période précise, sans accumulation d'erreurs dues aux fluctuations du temps d'exécution. Le nombre de basculements est réduit à 10000, rendant chaque cycle de travail plus court. Lorsque nIteration=10000, la différence de temps entre les deux signaux est difficile à observer ; mais après modification de la valeur nIterations, on peut clairement voir le délai de la tâche 2 causé par l'occupation de la tâche 1, bien que le cycle de signal suivant reste inchangé, sauf si l'itération est trop grande causant un chevauchement des signaux.
+Cette expérimentation remplace `vTaskDelay` par `vTaskDelayUntil` et réduit le nombre de basculements à 10000, implémentant l'ordonnancement de tâches périodiques précises. `vTaskDelayUntil` calcule le temps de réveil suivant basé sur le moment du réveil précédent (plutôt que sur le moment actuel), garantissant que la tâche s'exécute avec une période précise, sans accumulation d'erreurs dues aux fluctuations du temps d'exécution. La tâche 1 maintient strictement une période de 10ms, la tâche 2 maintient strictement 20ms, car `vTaskDelayUntil` compense le temps d'exécution de la tâche, garantissant que l'intervalle du réveil précédent au réveil suivant est précisément égal à la période définie. Lorsque nIteration=10000, la différence de temps entre les deux signaux est difficile à observer ; mais après modification de la valeur nIterations, on peut clairement voir le délai de la tâche 2 causé par l'occupation de la tâche 1, bien que le cycle de signal suivant reste inchangé. Si les deux tâches sont forcées sur le même cœur, en raison des priorités différentes, la tâche de haute priorité peut retarder le démarrage de la tâche de basse priorité, mais `vTaskDelayUntil` peut toujours garantir que la périodicité de la tâche de basse priorité n'est pas affectée à long terme. Il est important de noter qu'augmenter progressivement nb_iterations présente un risque : lorsque le temps d'exécution de la tâche (WCET) dépasse sa période définie, la tâche ne pourra pas terminer son travail avant l'arrivée du cycle suivant, entraînant une rupture de la périodicité et un chevauchement des signaux, donc le critère clé est que le temps d'exécution doit être inférieur au temps de période.
 
 ### Analyse graphique
 
@@ -99,8 +99,8 @@ Ce mécanisme est similaire à un modèle "starter-athlète" : la tâche 1 lève
 Cette expérimentation démontre le problème de condition de course (Race Condition) dans un environnement multitâche pour les ressources partagées et sa solution. Le programme crée deux tâches vTask1 et vTask2, qui appellent toutes deux la même fonction `alternate()` pour opérer la sortie GPIO. Cette fonction est considérée comme une "ressource partagée", si deux tâches y accèdent simultanément, cela entraînera un désordre de la forme d'onde de sortie.
 
 L'expérimentation est divisée en deux phases :
-1. **Première phase** : Les `xSemaphoreTake()` et `xSemaphoreGive()` du mutex sont commentés, les deux tâches peuvent accéder à la ressource partagée de manière désordonnée
-2. **Deuxième phase** : Les commentaires du code mutex sont supprimés, chaque tâche doit d'abord acquérir le mutex avant d'entrer dans la section critique, le libérer après utilisation, garantissant qu'une seule tâche peut accéder à la ressource partagée à un moment donné
+1. **Première phase** : Les `xSemaphoreTake()` et `xSemaphoreGive()` du mutex sont commentés, les deux tâches peuvent accéder à la ressource partagée de manière désordonnée. Dans cet état initial, l'accès simultané de deux tâches à la ressource partagée entraîne une interférence mutuelle des opérations GPIO, la forme d'onde de sortie présente un état chaotique et désordonné, incapable de former un motif d'impulsions régulier, c'est le problème typique de condition de course.
+2. **Deuxième phase** : Après suppression des commentaires du code mutex, chaque tâche doit d'abord acquérir le verrou avant d'accéder à `alternate()`, le libérer après utilisation, transformant l'accès concurrent en accès séquentiel. Le mutex garantit l'exécution atomique du code de la section critique, la forme d'onde devient régulière et ordonnée, les deux tâches travaillent alternativement sans interférence mutuelle, garantissant qu'une seule tâche peut accéder à la ressource partagée à un moment donné.
 
 #### Analyse graphique - Première phase (sans protection mutex)
 
@@ -260,11 +260,13 @@ Cette expérimentation démontre le mécanisme de coopération entre les interru
 - **vTask2** : S'exécute sur le cœur 1, priorité 10, attend que le sémaphore soit libéré puis effectue un basculement GPIO
 
 **Flux de travail** :
+
+Cette expérimentation démontre le modèle classique de traitement d'événements asynchrones "interruption-sémaphore-tâche" :
 1. La fonction setup entre dans une boucle infinie, bascule la sortie de GPIO12 toutes les 300ms
-2. GPIO5 détecte un changement de niveau (front montant ou descendant), déclenche la routine d'interruption
-3. La routine d'interruption appelle `xSemaphoreGiveFromISR()` pour libérer le sémaphore
+2. GPIO5 détecte un changement de niveau (front montant ou descendant) via connexion physique, déclenche la routine d'interruption
+3. La routine de service d'interruption appelle `xSemaphoreGiveFromISR()` pour libérer le sémaphore et notifier la tâche 2
 4. La tâche 2 acquiert le sémaphore via `xSemaphoreTake()`, est réveillée et exécute le travail
-5. La tâche 1 s'exécute indépendamment, non affectée par le système d'interruption
+5. La tâche 1 s'exécute indépendamment de manière périodique, non affectée par le système d'interruption
 
 ### 2.4.2 Analyse graphique
 
@@ -386,7 +388,7 @@ La capacité de la file est de 5. Même si la tâche de réception ne peut pas t
 
 ### 2.5.4 Conclusion
 
-La file d'attente est un mécanisme important pour implémenter la communication entre tâches dans FreeRTOS. Cette expérimentation montre le modèle multi-producteurs mono-consommateur. La file offre un transfert de données thread-safe, combiné au mécanisme de priorité, elle peut réaliser un contrôle efficace du flux de données.
+La file d'attente est un mécanisme important pour implémenter la communication entre tâches dans FreeRTOS. Cette expérimentation montre le modèle multi-producteurs mono-consommateur : deux tâches d'envoi (envoyant les valeurs fixes 100 et 200) et une tâche de réception (avec priorité plus élevée) échangent des données via une file de capacité 5. La file offre un transfert de données thread-safe, la priorité plus élevée de la tâche de réception garantit le traitement opportun des données, la file fournit un tampon évitant la perte de données, et combinée au mécanisme de priorité, elle peut réaliser un contrôle efficace du flux de données.
 
 ## 2.6 Synchronisation par point de rendez-vous (Q26)
 
@@ -400,7 +402,7 @@ Le programme utilise un sémaphore de comptage `xSemaphoreCreateCounting(2, 0)` 
 
 ### 2.6.3 Conclusion
 
-Le sémaphore de comptage offre un mécanisme flexible de synchronisation multitâche. Ce modèle de point de rendez-vous est adapté aux scénarios nécessitant l'agrégation des résultats de plusieurs tâches parallèles, comme la fusion de données multi-capteurs ou les points de synchronisation dans le calcul distribué.
+Le sémaphore de comptage offre un mécanisme flexible de synchronisation multitâche. Ce modèle de point de rendez-vous permet aux tâches 1 et 2 d'exécuter en parallèle puis d'appeler chacune `xSemaphoreGive()` pour libérer le sémaphore, tandis que la tâche 3 appelle deux fois consécutives `xSemaphoreTake()` pour attendre les deux signaux, la tâche 3 ne pouvant commencer que lorsque les deux premières tâches sont terminées, réalisant ainsi la synchronisation par rendez-vous multitâche. Ce modèle est adapté aux scénarios nécessitant l'agrégation des résultats de plusieurs tâches parallèles, comme la fusion de données multi-capteurs ou les points de synchronisation dans le calcul distribué.
 
 ---
 
